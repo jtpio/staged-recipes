@@ -1,0 +1,83 @@
+context:
+  version: "0.1.0"
+
+package:
+  name: xeus-quickjs
+  version: ${{ version }}
+
+source:
+  url: https://github.com/jtpio/xeus-quickjs/archive/refs/tags/${{ version }}.tar.gz
+  sha256: aa9e3905dc0c355ed58f5c87f432c1b550e2101fa1b62f1abdc325aacc2f7a7e
+
+build:
+  number: 0
+  skip:
+    - win
+  script:
+    # The QuickJS version is read from `qjs -h`, which must run on the build machine
+    - if [[ "${CONDA_BUILD_CROSS_COMPILATION:-0}" == "1" ]]; then CMAKE_ARGS="${CMAKE_ARGS} -DQuickJS_EXECUTABLE=${BUILD_PREFIX}/bin/qjs"; fi
+    - cmake -G Ninja ${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} -DCMAKE_PREFIX_PATH=${PREFIX} -DCMAKE_INSTALL_LIBDIR=lib -DXEUS_QUICKJS_BUILD_STATIC=OFF -S . -B build
+    - cmake --build build
+    - cmake --install build
+
+requirements:
+  build:
+    - ${{ compiler('c') }}
+    - ${{ compiler('cxx') }}
+    - ${{ stdlib('c') }}
+    - cmake
+    - ninja
+    - if: build_platform != target_platform
+      then:
+        - quickjs >=2026.06.04
+  host:
+    - xeus >=6.0.6,<7
+    - xeus-zmq >=4.0,<5
+    - nlohmann_json >=3.12,<4
+    # Static library, linked into libxeus-quickjs
+    - quickjs >=2026.06.04
+
+tests:
+  - package_contents:
+      bin:
+        - xquickjs
+      lib:
+        - xeus-quickjs
+      include:
+        - xeus-quickjs/xinterpreter.hpp
+      files:
+        exists:
+          - share/jupyter/kernels/xquickjs/kernel.json
+          - lib/cmake/xeus-quickjs/xeus-quickjsConfig.cmake
+          - lib/cmake/xeus-quickjs/xeus-quickjsConfigVersion.cmake
+        not_exists:
+          - lib/libxeus-quickjs.a
+  - files:
+      source:
+        - test/test_xquickjs_kernel.py
+    requirements:
+      run:
+        - pytest
+        - jupyter_kernel_test >=0.7
+    script:
+      - pytest test/test_xquickjs_kernel.py -v
+
+about:
+  homepage: https://github.com/jtpio/xeus-quickjs
+  repository: https://github.com/jtpio/xeus-quickjs
+  documentation: https://xeus-quickjs.readthedocs.io
+  license: BSD-3-Clause AND MIT
+  license_file:
+    - LICENSE
+    - thirdparty/acorn/LICENSE
+    # QuickJS is statically linked
+    - LICENSE-quickjs
+  summary: JavaScript kernel for Jupyter based on QuickJS and xeus
+  description: |
+    xeus-quickjs is a Jupyter kernel for JavaScript based on QuickJS, the
+    small and embeddable JavaScript engine by Fabrice Bellard, and on xeus,
+    the native implementation of the Jupyter protocol.
+
+extra:
+  recipe-maintainers:
+    - jtpio
